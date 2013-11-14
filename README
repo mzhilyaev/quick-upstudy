@@ -1,0 +1,30 @@
+1. install mysql, then
+
+echo "create database upstudy" | mysql -u root
+echo "grant ALL ON *.* TO 'admin'@'localhost'" | mysql -u root
+
+2. install these CPAN modules
+
+sudo bash
+perl -MCPAN -e 'install JSON'
+perl -MCPAN -e 'install XML::Simple'
+perl -MCPAN -e 'install List::Util'
+
+3. download survey in XML format into survey.xml
+
+4. downlaod subbmsions from metrics to submissions.json
+
+5. populate database
+
+cat create_tables.sql edcats 58cats | mysql -u admin upstudy
+./procSurvey.pl -i survey.xml -d | mysql -u admin upstudy
+./procHistory.pl -i submissions.json -d | mysql -u admin upstudy
+
+6. read query examples in examples.sql
+
+
+
+
+
+
+

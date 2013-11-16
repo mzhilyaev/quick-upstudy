@@ -69,17 +69,22 @@ sub extractInterests {
     if ($key =~ /top_5/) {
       $key =~ s/^.url."//;
       $key =~ s/".*$//;
-      push @$cats , [$interests->{$key},1];
+      if ($val) {
+        push @$cats , [$interests->{$key},1,1];
+      }
+      else {
+        push @$cats , [$interests->{$key},0,1];
+      }
       delete $interests->{$key};
     }
     elsif ($key =~ /additional_interests/) {
       $key =~ s/^.url."//;
       $key =~ s/".*$//;
-      push @$cats , [$interests->{$key},2];
+      push @$cats , [$interests->{$key},2,0];
       delete $interests->{$key};
     }
   }
-  push @$cats , map { [$_, 0]; } values %$interests;
+  push @$cats , map { [$_, 0, 0]; } values %$interests;
   return ($cats);
 }
 
@@ -89,15 +94,16 @@ sub genDB {
  my $uuid = $dict->{userID};
  my $respid = $dict->{"Response ID"};
  if ($uuid) {
-   print "insert into Surveys value('$uuid',$respid);\n";
+   print "insert ignore into Surveys value('$uuid',$respid);\n";
    print "insert ignore into UUID value(NULL, '$uuid');\n";
    print "delete from SurveyData;\n";
    for my $item (@$cats) {
     my $cat = $item->[0];
-    my $score = $item->[1];
-    print "insert ignore into SurveyData value('$uuid','$cat',$score);\n";
+    my $choice = $item->[1];
+    my $top5 = $item->[2];
+    print "insert ignore into SurveyData value('$uuid','$cat',$choice,$top5);\n";
    }
-   print "replace into UserScore select uid , cid , score from SurveyData, UUID, Cats where uuid = UUID.name and cat = Cats.name;\n";
+   print "replace into UserChoice select uid , cid , choice, isTop5 from SurveyData, UUID, Cats where uuid = UUID.name and cat = Cats.name;\n";
  }
 }
 
@@ -108,7 +114,7 @@ for my $rrow (@$rows) {
   #print scalar(@$row) . " " . scalar(@$frow) , " =====\n";
   die "DIFERENT LEN\n" if( scalar(@$row) != scalar(@$frow));
   while( $i < scalar(@$row)) {
-    if ($row->[$i]->{Data}->{content}) {
+    if ($row->[$i]->{Data}->{content} || $frow->[$i]->{Data}->{content} =~ /:top_5/) {
       $dict->{$frow->[$i]->{Data}->{content}} = $row->[$i]->{Data}->{content};
     }
     $i++;

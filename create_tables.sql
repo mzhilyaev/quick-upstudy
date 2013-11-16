@@ -46,11 +46,12 @@ create table IF NOT EXISTS AlgRanks (
   PRIMARY KEY (uid,aid,cid)
 );
 
-drop table IF EXISTS UserScore;
-create table IF NOT EXISTS UserScore (
+drop table IF EXISTS UserChoice;
+create table IF NOT EXISTS UserChoice (
   uid INTEGER UNSIGNED,
   cid INTEGER UNSIGNED,
-  score INTEGER UNSIGNED,
+  choice INTEGER UNSIGNED,  ## 1 for top5 page choice, 2 for aditional page choice
+  isTop5 INTEGER UNSIGNED,  ## is it a top5 interest (1 or 0)
   PRIMARY KEY (uid,cid)
 );
 
@@ -67,9 +68,17 @@ drop table IF EXISTS SurveyData;
 create table IF NOT EXISTS SurveyData (
   uuid VARCHAR(64) NOT NULL,
   cat VARCHAR(64) NOT NULL,
-  score INTEGER UNSIGNED
+  choice INTEGER UNSIGNED ,
+  isTop5 INTEGER UNSIGNED
 );
 
-
-
+create table CatStats (
+  aid INTEGER UNSIGNED,
+  cid INTEGER UNSIGNED,
+  total INTEGER UNSIGNED,
+  onTopPage INTEGER UNSIGNED,
+  top INTEGER UNSIGNED,
+  additional INTEGER UNSIGNED,
+  hit INTEGER UNSIGNED
+);
 

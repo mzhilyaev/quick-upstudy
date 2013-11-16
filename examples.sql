@@ -5,20 +5,22 @@ insert into CatStats
 select aid ,
        ar.cid  ,
        count(1) as total ,
-       sum(if(us.score=1,1,0)) as top,
-       sum(if(us.score=2,1,0)) as additional,
-       sum(if(us.score!=0,1,0)) as hit
-from  AlgRanks ar , UserScore us
+       sum(us.isTop5 != 0) as onTopPage ,
+       sum(if(us.choice=1,1,0)) as top,
+       sum(if(us.choice=2,1,0)) as additional,
+       sum(if(us.choice!=0,1,0)) as hit
+from  AlgRanks ar , UserChoice us
 where ar.uid = us.uid and ar.cid = us.cid and ar.rank <= 15
 group by aid,cid;
 
 #### show how categories were presented and choosen by a user
 select Cats.name ,
-       sum(score = 1) as top ,
-       sum(if(score != 0,1,0)) as interested ,
-       sum(1) as presented
-from UserScore, Cats
-where Cats.cid = UserScore.cid
+       sum(choice = 1) as topInterested ,
+       sum(if(choice != 0,1,0)) as interested ,
+       sum(isTop5) as onFirstPage,
+       sum(1) as overAll
+from UserChoice, Cats
+where Cats.cid = UserChoice.cid
 group by Cats.name
 order by interested desc;
 
@@ -27,7 +29,8 @@ select Algs.name,
        Cats.name,
        top * 100 / total top_prec,
        hit * 100 / total all_prec ,
-       total as presented
+       total as presented ,
+       onTopPage as firstPage
 from CatStats cs, Cats, Algs
 where Cats.cid = cs.cid and Cats.name = 'Technology' and Algs.aid = cs.aid
 order by presented desc;
@@ -40,14 +43,14 @@ order by score desc;
 
 
 ### show how a given algorithm does for a given category
-select al.name , ct.name, ar.score , rank , us.score user_choise
-from AlgRanks ar , UserScore us, Algs al , Cats ct
+select al.name , ct.name, ar.score , rank , us.choice user_choise, us.isTop5 as topPage
+from AlgRanks ar , UserChoice us, Algs al , Cats ct
 where us.cid = ar.cid and us.uid = ar.uid and ct.cid = ar.cid and al.aid = ar.aid and al.name = "daycount.combined.edrules" and ct.name = "Do-It-Yourself"
 order by ar.score desc;
 
-### show how a give algorithm does for all cagtegories
-select al.name , ct.name, ar.score , rank , us.score user_choise
-from AlgRanks ar , UserScore us, Algs al , Cats ct
+### show how an algorithm does for all cagtegories
+select al.name , ct.name, ar.score , rank , us.choice user_choise, us.isTop5 as topPage
+from AlgRanks ar , UserChoice us, Algs al , Cats ct
 where us.cid = ar.cid and us.uid = ar.uid and ct.cid = ar.cid and al.aid = ar.aid and al.name = "daycount.combined.edrules"
 order by ct.name,ar.score desc;
 
@@ -57,10 +60,11 @@ select al.name , ct.name,
        AVG(rank) ,
        MAX(rank) ,
        COUNT(1) presented,
-       SUM(us.score = 1) top,
-       SUM(us.score = 2) additional,
-       SUM(us.score != 0) / COUNT(1) overall_precision
-from AlgRanks ar , UserScore us, Algs al , Cats ct
+       SUM(us.isTop5 = 1) firstPage,
+       SUM(us.choice = 1) top,
+       SUM(us.choice = 2) additional,
+       SUM(us.choice != 0) / COUNT(1) overall_precision
+from AlgRanks ar , UserChoice us, Algs al , Cats ct
 where us.cid = ar.cid and us.uid = ar.uid and ct.cid = ar.cid and al.aid = ar.aid and al.name = "daycount.combined.edrules"
 group by al.name , ct.name
 order by overall_precision desc;
@@ -70,10 +74,10 @@ select al.name , ct.name,
        AVG(ar.score) ,
        AVG(rank) ,
        COUNT(1) presented,
-       SUM(us.score = 1) top,
-       SUM(us.score = 2) additional,
-       SUM(us.score != 0) / COUNT(1) overall_precision
-from AlgRanks ar , UserScore us, Algs al , Cats ct
+       SUM(us.choice = 1) top,
+       SUM(us.choice = 2) additional,
+       SUM(us.choice != 0) / COUNT(1) overall_precision
+from AlgRanks ar , UserChoice us, Algs al , Cats ct
 where us.cid = ar.cid and us.uid = ar.uid and ct.cid = ar.cid and al.aid = ar.aid and al.name = "daycount.combined.edrules" and ar.rank <= 5
 group by al.name , ct.name
 order by overall_precision desc;
@@ -81,8 +85,8 @@ order by overall_precision desc;
 #### compute and AVG precision for an alg
 select name alg, AVG(overall_precision) precision_avg
 from
- (select al.name as name, SUM(us.score != 0) / COUNT(1) as overall_precision
-  from AlgRanks ar , UserScore us, Algs al , Cats ct
+ (select al.name as name, SUM(us.choice != 0) / COUNT(1) as overall_precision
+  from AlgRanks ar , UserChoice us, Algs al , Cats ct
   where us.cid = ar.cid and us.uid = ar.uid and ct.cid = ar.cid and al.aid = ar.aid and ar.rank <= 10
   group by al.name , ct.name
  ) as apres

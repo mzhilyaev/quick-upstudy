@@ -65,26 +65,30 @@ sub extractInterests {
   my $dict = shift;
   my $cats = [];
   my $interests = $json->decode( $dict->{interests});
-  while(my ($key,$val) = each %$dict) {
-    if ($key =~ /top_5/) {
-      $key =~ s/^.url."//;
-      $key =~ s/".*$//;
+  my @scoreList = split(/,/,$dict->{scoreList});
+  while(my ($url,$val) = each %$dict) {
+    my $key = $url;
+    $key =~ s/^.url."//;
+    $key =~ s/".*$//;
+    my $position = $key;
+    $position =~ s/^interest//;
+    my $surveyScore = 0 + $scoreList[$position-1];
+
+    if ($url =~ /top_5/) {
       if ($val) {
-        push @$cats , [$interests->{$key},1,1];
+        push @$cats , [$interests->{$key},1,1,$surveyScore];
       }
       else {
-        push @$cats , [$interests->{$key},0,1];
+        push @$cats , [$interests->{$key},0,1,$surveyScore];
       }
-      delete $interests->{$key};
     }
-    elsif ($key =~ /additional_interests/) {
-      $key =~ s/^.url."//;
-      $key =~ s/".*$//;
-      push @$cats , [$interests->{$key},2,0];
-      delete $interests->{$key};
+    elsif ($url =~ /additional_interests/) {
+      push @$cats , [$interests->{$key},2,0,$surveyScore];
+    }
+    elsif($interests->{$key}) {
+      push @$cats , [$interests->{$key},0,0,$surveyScore];
     }
   }
-  push @$cats , map { [$_, 0, 0]; } values %$interests;
   return ($cats);
 }
 
@@ -101,9 +105,10 @@ sub genDB {
     my $cat = $item->[0];
     my $choice = $item->[1];
     my $top5 = $item->[2];
-    print "insert ignore into SurveyData value('$uuid','$cat',$choice,$top5);\n";
+    my $surveyScore = $item->[2];
+    print "insert ignore into SurveyData value('$uuid','$cat',$choice,$top5,$surveyScore);\n";
    }
-   print "replace into UserChoice select uid , cid , choice, isTop5 from SurveyData, UUID, Cats where uuid = UUID.name and cat = Cats.name;\n";
+   print "replace into UserChoice select uid , cid , choice, isTop5, surveyScore from SurveyData, UUID, Cats where uuid = UUID.name and cat = Cats.name;\n";
  }
 }
 

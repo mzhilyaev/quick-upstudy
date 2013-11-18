@@ -52,6 +52,7 @@ create table IF NOT EXISTS UserChoice (
   cid INTEGER UNSIGNED,
   choice INTEGER UNSIGNED,  ## 1 for top5 page choice, 2 for aditional page choice
   isTop5 INTEGER UNSIGNED,  ## is it a top5 interest (1 or 0)
+  surveyScore INTEGER UNSIGNED,  ## score from survey
   PRIMARY KEY (uid,cid)
 );
 
@@ -64,14 +65,17 @@ create table IF NOT EXISTS ScriptData (
   rank INTEGER UNSIGNED
 );
 
+# alg name is [COUNTING_METHOD]+[NAMESPACE]+[TYPE
 drop table IF EXISTS SurveyData;
 create table IF NOT EXISTS SurveyData (
   uuid VARCHAR(64) NOT NULL,
   cat VARCHAR(64) NOT NULL,
   choice INTEGER UNSIGNED ,
-  isTop5 INTEGER UNSIGNED
+  isTop5 INTEGER UNSIGNED ,
+  surveyScore INTEGER UNSIGNED
 );
 
+drop table IF EXISTS CatStats;
 create table CatStats (
   aid INTEGER UNSIGNED,
   cid INTEGER UNSIGNED,
@@ -80,5 +84,16 @@ create table CatStats (
   top INTEGER UNSIGNED,
   additional INTEGER UNSIGNED,
   hit INTEGER UNSIGNED
+);
+
+drop table IF EXISTS SubmissionData;
+create table IF NOT EXISTS ScriptData (
+  user_id INTEGER UNSIGNED NOT NULL,
+  type_id INTEGER UNSIGNED NOT NULL,
+  namesapce_id INTEGER UNSIGNED NOT NULL,
+  interest_id INTEGER UNSIGNED NOT NULL,
+  day INTEGER UNSIGNED NOT NULL,
+  hostCount VARCHAR(1024) NOT NULL,
+  PRIMARY KEY(user_id,day,type_id,namesapce_id,interest_id)
 );
 

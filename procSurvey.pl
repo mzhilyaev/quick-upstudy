@@ -97,8 +97,12 @@ sub genDB {
  my $cats = extractInterests($dict);
  my $uuid = $dict->{userID};
  my $respid = $dict->{"Response ID"};
+ my $country = $dict->{"Country"};
+ my $lang = $dict->{"Language"};
+ my $submitted = $dict->{"Date Submitted"};
+ my $users = (0  + $dict->{"computer_users"}) || "NULL";
  if ($uuid) {
-   print "insert ignore into Surveys value('$uuid',$respid);\n";
+   print "insert ignore into Surveys value('$uuid',$respid,'$country','$lang','$submitted','$users');\n";
    print "insert ignore into UUID value(NULL, '$uuid');\n";
    print "delete from SurveyData;\n";
    for my $item (@$cats) {

@@ -10,14 +10,29 @@ create table IF NOT EXISTS UUID
 drop table IF EXISTS Payloads;
 create table IF NOT EXISTS Payloads
 (
-  uuid VARCHAR(64) NOT NULL
+  uuid VARCHAR(64) NOT NULL ,
+  days INTEGER UNSIGNED NOT NULL ,
+  lastday INTEGER UNSIGNED NOT NULL
 );
+
+drop table IF EXISTS HistSize;
+create table IF NOT EXISTS HistSize (
+  uid INTEGER UNSIGNED NOT NULL,
+  days INTEGER UNSIGNED NOT NULL,
+  PRIMARY KEY(uid)
+);
+
+
 
 drop table IF EXISTS Surveys;
 create table IF NOT EXISTS Surveys
 (
   uuid VARCHAR(64) NOT NULL,
   ReponseId INTEGER UNSIGNED NOT NULL,
+  country VARCHAR(64),
+  lang VARCHAR(64),
+  submitted VARCHAR(64),
+  users INTEGER UNSIGNED,
   PRIMARY KEY(uuid,ReponseId)
 );
 
@@ -56,15 +71,6 @@ create table IF NOT EXISTS UserChoice (
   PRIMARY KEY (uid,cid)
 );
 
-drop table IF EXISTS ScriptData;
-create table IF NOT EXISTS ScriptData (
-  uuid VARCHAR(64) NOT NULL,
-  alg VARCHAR(64) NOT NULL,
-  cat VARCHAR(64) NOT NULL,
-  score INTEGER UNSIGNED,
-  rank INTEGER UNSIGNED
-);
-
 # alg name is [COUNTING_METHOD]+[NAMESPACE]+[TYPE
 drop table IF EXISTS SurveyData;
 create table IF NOT EXISTS SurveyData (
@@ -87,7 +93,7 @@ create table CatStats (
 );
 
 drop table IF EXISTS SubmissionData;
-create table IF NOT EXISTS ScriptData (
+create table IF NOT EXISTS SubmissionData (
   user_id INTEGER UNSIGNED NOT NULL,
   type_id INTEGER UNSIGNED NOT NULL,
   namesapce_id INTEGER UNSIGNED NOT NULL,
@@ -96,4 +102,14 @@ create table IF NOT EXISTS ScriptData (
   hostCount VARCHAR(1024) NOT NULL,
   PRIMARY KEY(user_id,day,type_id,namesapce_id,interest_id)
 );
+
+drop table IF EXISTS ScriptData;
+create table IF NOT EXISTS ScriptData (
+  uuid VARCHAR(64) NOT NULL,
+  alg VARCHAR(64) NOT NULL,
+  cat VARCHAR(64) NOT NULL,
+  score INTEGER UNSIGNED,
+  rank INTEGER UNSIGNED
+);
+
 

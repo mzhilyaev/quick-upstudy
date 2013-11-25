@@ -19,6 +19,7 @@ drop table IF EXISTS HistSize;
 create table IF NOT EXISTS HistSize (
   uid INTEGER UNSIGNED NOT NULL,
   days INTEGER UNSIGNED NOT NULL,
+  country VARCHAR(64),
   PRIMARY KEY(uid)
 );
 

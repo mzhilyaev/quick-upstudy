@@ -9,12 +9,16 @@ use Getopt::Long;
 my $help;
 my $inFile;
 my $dbfy;
+my $mapf;
+my $keepf;
 
 if(
      !GetOptions (
             "help|h" => \$help ,
             "input|i=s" => \$inFile ,
+            "map|m=s" => \$mapf ,
             "dbfy|d" => \$dbfy ,
+            "keep|k=s" => \$keepf ,
      )
      || defined( $help )  ### or help is wanted
      || !defined( $inFile )
@@ -30,17 +34,40 @@ sub usage {
             --help|-h       - prints this help
             --input|-i      - input json file
             --dbfy|-d      - generate database dump
+            --map|-m      - intertest to namespace map
+            --keep|-k      - keyword cats
             \n";
     exit 1;
 }
+
+my $map = {};
+open(FILE, "<$mapf");
+while(<FILE>) {
+  chomp($_);
+  my($interest, $namespace) = split(/ /,$_);
+  $map->{$interest} = $namespace;
+}
+close(FILE);
+
+my $kwKeep = {};
+open(FILE, "<$keepf");
+while(<FILE>) {
+  chomp($_);
+  $kwKeep->{$_} = 1;
+}
+close(FILE);
+
 
 my $json = JSON->new();
 
 my $algs = {};
 my $data = "";
+my $ind = 1;
 open(FILE,"< $inFile");
 while(<FILE>) {
   procData($_);
+  #print "$ind\n";
+  $ind++;
 }
 close(FILE);
 
@@ -48,7 +75,44 @@ if (!$dbfy) {
   print Dumper($algs);
 }
 else {
+  synth();
   output();
+}
+
+
+sub synth {
+  for my $uuid (keys %$algs) {
+    my $userAlgs = $algs->{$uuid}->{counts};
+    for my $key (keys %$userAlgs) {
+      my ($method,$type,$ns,$cat) = split(/\./ , $key);
+        if( $type eq "combined" && $ns =~ /edrules/ && $method ne "visitcount") {
+          my $new_key = "$method.partial_combined.$ns.$cat";
+          if ($kwKeep->{$cat}) {
+            $userAlgs->{$new_key} = $userAlgs->{$key};
+          }
+          else {
+            my $ruleKey = "$method.rules.$ns.$cat";
+            if (exists $userAlgs->{$ruleKey}) {
+              $userAlgs->{$new_key} = $userAlgs->{$ruleKey};
+            }
+          }
+        }
+    }
+  }
+
+  for my $uuid (keys %$algs) {
+    my $userAlgs = $algs->{$uuid}->{counts};
+    for my $key (keys %$userAlgs) {
+      my ($method,$type,$ns,$cat) = split(/\./ , $key);
+        if( $ns eq "edrules" || $ns eq "edrules_extended") {
+           my $map_ns = $map->{$cat} || "edrules";
+           if ($map_ns eq $ns) {
+             my $new_key = "$method.$type.rules_synthetic.$cat";
+             $userAlgs->{$new_key} = $userAlgs->{$key};
+           }
+        }
+    }
+ }
 }
 
 
@@ -59,11 +123,17 @@ sub addDays {
 
 sub computeScores {
     my ($uuid,$day,$type,$ns,$cat,$hostsVisist) = @_;
+
     # make a key
     my $key = "$type.$ns.$cat";  
     $algs->{$uuid}->{counts}->{"daycount.$key"} ++;
     $algs->{$uuid}->{counts}->{"hostcount.$key"} += scalar(@$hostsVisist);
+    $algs->{$uuid}->{counts}->{"sqrt_hcnt.$key"} += sqrt(scalar(@$hostsVisist));
     $algs->{$uuid}->{counts}->{"visitcount.$key"} += sum(@$hostsVisist);
+
+    #sumweight[android] = 1;
+    #visitweight[android] = 0;
+    #$algs->{$uuid}->{counts}->{"smartcount.$key"} += sum(@$hostsVisist) * sumweight[cat] + scalar(hostvisits) * visitweight[cat];
 }
 
 # compute scroes for each category
@@ -99,6 +169,8 @@ sub procData {
 
 sub output {
   #print Dumper($algs);
+  `rm -f /tmp/theoutfile`;
+  open( FILE ," > /tmp/theoutfile");
   for my $uuid (keys %$algs) {
     my $userAlgs = $algs->{$uuid}->{counts};
     my @sorted = sort {
@@ -118,7 +190,6 @@ sub output {
 
     print "insert ignore into UUID value(NULL, '$uuid');\n";
     print "insert into Payloads value('$uuid',$algs->{$uuid}->{daycount}, $algs->{$uuid}->{day});\n";
-    print "delete from ScriptData;\n";
     my $lastSet = "";
     my $rank = 1;
     for my $key (@sorted) {
@@ -133,10 +204,21 @@ sub output {
         }
         my $score = $userAlgs->{$key};
         $key =~ s/^.*\.//;
-        print "insert into ScriptData value('$uuid', '$lastSet', '$key', $score, $rank);\n";
+        #print "insert into ScriptData value('$uuid', '$lastSet', '$key', $score, $rank);\n";
+        print FILE "$uuid\t$lastSet\t$key\t$score\t$rank\n";
         $rank++;
     }
-    print "replace into AlgRanks select uid , aid , cid , score , rank from ScriptData, UUID, Algs, Cats where uuid = UUID.name and alg = Algs.name and cat = Cats.name;\n";
   }
-  print "insert into HistSize select uid , days from UUID , Payloads where UUID.name = Payloads.uuid;\n";
+  close(FILE);
+  print "delete from ScriptData;\n";
+  print "load data infile '/tmp/theoutfile' into table ScriptData;\n";
+  print "replace into AlgRanks select uid , aid , cid , score , rank from ScriptData, UUID, Algs, Cats where uuid = UUID.name and alg = Algs.name and cat = Cats.name;\n";
+  print "insert ignore into HistSize select UUID.uid , days , country , sum( AlgRanks.score) score_sum
+                from UUID , Payloads , Surveys , Algs , AlgRanks 
+                where UUID.name = Payloads.uuid 
+                    and Surveys.uuid = UUID.name 
+                    and AlgRanks.uid = UUID.uid
+                    and Algs.aid = AlgRanks.aid
+                    and Algs.name = 'daycount.rules.edrules_extended'
+                group by UUID.uid;"
 }

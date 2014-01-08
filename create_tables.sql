@@ -20,10 +20,9 @@ create table IF NOT EXISTS HistSize (
   uid INTEGER UNSIGNED NOT NULL,
   days INTEGER UNSIGNED NOT NULL,
   country VARCHAR(64),
+  scoresum INTEGER UNSIGNED,
   PRIMARY KEY(uid)
 );
-
-
 
 drop table IF EXISTS Surveys;
 create table IF NOT EXISTS Surveys

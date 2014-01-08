@@ -57,3 +57,5 @@ insert into Cats values(NULL, 'video-games');
 insert into Cats values(NULL, 'weather');
 insert into Cats values(NULL, 'women');
 insert into Cats values(NULL, 'writing');
+insert into Cats values(NULL, '__news_home_counter');
+insert into Cats values(NULL, '__news_counter');

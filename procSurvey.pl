@@ -61,33 +61,37 @@ sub findHeader {
   return $i;
 }
 
+sub grepInts {
+  my $dt = shift;
+  $dt =~ s/[\]\[]//g;
+  $dt =~ s/url\("//g;
+  $dt =~ s/"\)//g;
+  my @x =  split(/,/, $dt);
+  my $y = {};
+  map { $y->{$_} = 1; } @x;
+  return $y;
+}
+
 sub extractInterests {
   my $dict = shift;
   my $cats = [];
   my $interests = $json->decode( $dict->{interests});
+  my $top5 = grepInts($dict->{top_5});
+  my $additional_interests = grepInts($dict->{additional_interests});
   my @scoreList = split(/,/,$dict->{scoreList});
-  while(my ($url,$val) = each %$dict) {
-    my $key = $url;
-    $key =~ s/^.url."//;
-    $key =~ s/".*$//;
-    my $position = $key;
-    $position =~ s/^interest//;
-    my $surveyScore = 0 + $scoreList[$position-1];
-
-    if ($url =~ /top_5/) {
-      if ($val) {
-        push @$cats , [$interests->{$key},1,1,$surveyScore];
-      }
-      else {
-        push @$cats , [$interests->{$key},0,1,$surveyScore];
-      }
+  my $index = 1;
+  while ($index <= 30) {
+    my $top_5 = ($index <= 15) ? 1 : 0;
+    my $int = "interest$index";
+    my $choice = 0;
+    if ($top5->{$int}) {
+      $choice = 1;
     }
-    elsif ($url =~ /additional_interests/) {
-      push @$cats , [$interests->{$key},2,0,$surveyScore];
+    elsif ($additional_interests->{$int}) {
+      $choice = 2;
     }
-    elsif($interests->{$key}) {
-      push @$cats , [$interests->{$key},0,0,$surveyScore];
-    }
+    push @$cats , [$interests->{$int} , $choice , $top_5 , @scoreList[$index]];
+    $index++;
   }
   return ($cats);
 }
@@ -102,7 +106,7 @@ sub genDB {
  my $submitted = $dict->{"Date Submitted"};
  my $users = (0  + $dict->{"computer_users"}) || "NULL";
  if ($uuid) {
-   print "insert ignore into Surveys value('$uuid',$respid,'$country','$lang','$submitted','$users');\n";
+   print "insert ignore into Surveys value('$uuid',$respid,\"$country\",'$lang','$submitted','$users');\n";
    print "insert ignore into UUID value(NULL, '$uuid');\n";
    print "delete from SurveyData;\n";
    for my $item (@$cats) {
@@ -123,11 +127,13 @@ for my $rrow (@$rows) {
   #print scalar(@$row) . " " . scalar(@$frow) , " =====\n";
   die "DIFERENT LEN\n" if( scalar(@$row) != scalar(@$frow));
   while( $i < scalar(@$row)) {
-    if ($row->[$i]->{Data}->{content} || $frow->[$i]->{Data}->{content} =~ /:top_5/) {
-      $dict->{$frow->[$i]->{Data}->{content}} = $row->[$i]->{Data}->{content};
-    }
+    my $key = $frow->[$i]->{Data}->{content} ;
+    $key =~ s/^[0-9][0-9]:  *//;
+    $dict->{$key} = $row->[$i]->{Data}->{content};
     $i++;
   }
+
+  #print Dumper($dict); next;
 
   if (!$dict->{userID}) {
     next;

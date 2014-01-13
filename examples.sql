@@ -772,3 +772,7 @@ group by user, al.name
 group by alg
 order by prec desc;
 
+
+# generating uuid to interest mapping
+select UUID.name, Cats.name , choice, isTop5 into outfile '/tmp/survey.txt' from UserChoice , Cats , UUID where Cats.cid = UserChoice.cid and UUID.uid = UserChoice.uid and choice > 0 order by UUID.name;
+

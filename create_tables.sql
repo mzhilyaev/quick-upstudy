@@ -4,7 +4,10 @@ drop table IF EXISTS UUID;
 create table IF NOT EXISTS UUID
 (
   uid INTEGER UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(64) NOT NULL UNIQUE KEY
+  name VARCHAR(64) NOT NULL UNIQUE KEY,
+  hasSurveyInterests TINYINT,
+  personalizeOn TINYINT,
+  installDate BIGINT UNSIGNED
 );
 
 drop table IF EXISTS Payloads;
@@ -110,6 +113,52 @@ create table IF NOT EXISTS ScriptData (
   cat VARCHAR(64) NOT NULL,
   score INTEGER UNSIGNED,
   rank INTEGER UNSIGNED
+);
+
+drop table IF EXISTS NYTUserData;
+create table IF NOT EXISTS NYTUserData (
+  uuid VARCHAR(64),
+  ts BIGINT UNSIGNED,
+  hasId TINYINT,
+  webSub TINYINT,
+  hdSub TINYINT,
+  mobSub TINYINT,
+  aritcleViews INTEGER UNSIGNED
+);
+
+drop table IF EXISTS NYTUser;
+create table IF NOT EXISTS NYTUser (
+  uid INTEGER UNSIGNED NOT NULL,
+  ts BIGINT UNSIGNED,
+  hasId TINYINT,
+  webSub TINYINT,
+  hdSub TINYINT,
+  mobSub TINYINT,
+  aritcleViews INTEGER UNSIGNED,
+  PRIMARY KEY (uid, ts)
+);
+
+drop table IF EXISTS NYTVisitData;
+create table IF NOT EXISTS NYTVisitData (
+  uuid VARCHAR(64),
+  ts BIGINT UNSIGNED,
+  visitId INTEGER UNSIGNED,
+  fromId INTEGER UNSIGNED,
+  path VARCHAR(256),
+  query VARCHAR(256),
+  host VARCHAR(64)
+);
+
+drop table IF EXISTS NYTVisit;
+create table IF NOT EXISTS NYTVisit (
+  uid INTEGER UNSIGNED NOT NULL,
+  ts BIGINT UNSIGNED,
+  visitId INTEGER UNSIGNED,
+  fromId INTEGER UNSIGNED,
+  path VARCHAR(256),
+  query VARCHAR(256),
+  host VARCHAR(64),
+  PRIMARY KEY (uid, ts, visitId, fromId)
 );
 
 

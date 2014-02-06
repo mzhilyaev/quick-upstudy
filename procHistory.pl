@@ -5,12 +5,14 @@ use Data::Dumper;
 use JSON;
 use List::Util qw(sum);
 use Getopt::Long;
+use Date::Parse;
 
 my $help;
 my $inFile;
 my $dbfy;
 my $mapf;
 my $keepf;
+my $skipInts;
 
 if(
      !GetOptions (
@@ -19,6 +21,7 @@ if(
             "map|m=s" => \$mapf ,
             "dbfy|d" => \$dbfy ,
             "keep|k=s" => \$keepf ,
+            "noints" => \$skipInts ,
      )
      || defined( $help )  ### or help is wanted
      || !defined( $inFile )
@@ -36,31 +39,36 @@ sub usage {
             --dbfy|-d      - generate database dump
             --map|-m      - intertest to namespace map
             --keep|-k      - keyword cats
+            --noints      - skip interets
             \n";
     exit 1;
 }
 
 my $map = {};
+if ($mapf) {
 open(FILE, "<$mapf");
-while(<FILE>) {
-  chomp($_);
-  my($interest, $namespace) = split(/ /,$_);
-  $map->{$interest} = $namespace;
+  while(<FILE>) {
+    chomp($_);
+    my($interest, $namespace) = split(/ /,$_);
+    $map->{$interest} = $namespace;
+  }
+  close(FILE);
 }
-close(FILE);
 
 my $kwKeep = {};
-open(FILE, "<$keepf");
-while(<FILE>) {
-  chomp($_);
-  $kwKeep->{$_} = 1;
+if ($keepf) {
+  open(FILE, "<$keepf");
+  while(<FILE>) {
+    chomp($_);
+    $kwKeep->{$_} = 1;
+  }
+  close(FILE);
 }
-close(FILE);
-
 
 my $json = JSON->new();
 
 my $algs = {};
+my $nyt = {};
 my $data = "";
 my $ind = 1;
 open(FILE,"< $inFile");
@@ -78,7 +86,6 @@ else {
   synth();
   output();
 }
-
 
 sub synth {
   for my $uuid (keys %$algs) {
@@ -142,6 +149,13 @@ sub procData {
   my $perl_scalar = $json->decode( $data );
   #print Dumper($perl_scalar);
   my $uuid = $perl_scalar->{"uuid"};
+  my $hasSurveyInterests = ($perl_scalar->{"hasSurveyInterests"}) ? 1 : 0;
+  my $personalizeOn = ($perl_scalar->{"personalizeOn"}) ? 1 : 0;
+  # convert date to timestamp
+  my $installDate = $perl_scalar->{"installDate"};
+  my $installTime = ($installDate) ? str2time($installDate)*1000000 : 0;
+  print "insert ignore into UUID value(NULL, '$uuid', $hasSurveyInterests, $personalizeOn, $installTime);\n";
+
   if(!$algs->{$uuid}) {
     $algs->{$uuid}->{day} = 0;
     $algs->{$uuid}->{days} = {};
@@ -149,23 +163,55 @@ sub procData {
     $algs->{$uuid}->{counts} = {};
   }
 
-  for my $day (keys %{$perl_scalar->{interests}}) {
-    if (!$algs->{$uuid}->{days}->{$day}) {
-      $algs->{$uuid}->{daycount} ++;
-      $algs->{$uuid}->{days}->{$day} = 1;
-      if ($algs->{$uuid}->{day} < $day) {
-        $algs->{$uuid}->{day} = $day;
-      }
-      for my $type (keys %{$perl_scalar->{interests}->{$day}}) {
-          for my $ns (keys %{$perl_scalar->{interests}->{$day}->{$type}}) {
-              for my $cat (keys %{$perl_scalar->{interests}->{$day}->{$type}->{$ns}}) {
-                  computeScores($uuid,$day,$type,$ns,$cat,$perl_scalar->{interests}->{$day}->{$type}->{$ns}->{$cat});
-              }
-          }
+  if (!$skipInts) {
+    for my $day (keys %{$perl_scalar->{interests}}) {
+      if (!$algs->{$uuid}->{days}->{$day}) {
+        $algs->{$uuid}->{daycount} ++;
+        $algs->{$uuid}->{days}->{$day} = 1;
+        if ($algs->{$uuid}->{day} < $day) {
+          $algs->{$uuid}->{day} = $day;
+        }
+        for my $type (keys %{$perl_scalar->{interests}->{$day}}) {
+            for my $ns (keys %{$perl_scalar->{interests}->{$day}->{$type}}) {
+                for my $cat (keys %{$perl_scalar->{interests}->{$day}->{$type}->{$ns}}) {
+                    computeScores($uuid,$day,$type,$ns,$cat,$perl_scalar->{interests}->{$day}->{$type}->{$ns}->{$cat});
+                }
+            }
+        }
       }
     }
   }
+
+  procNYTData($uuid,$perl_scalar);
 }
+
+sub procNYTData {
+  my ($uuid,$data) = @_;
+
+  return if (!$data->{nytUserData});
+
+  # populate NYTUserData with user data
+  my $timestamp = $data->{nytUserData}->{timeStamp} * 1000;
+  my $hasId = ($data->{nytUserData}->{hasId}) ? 1 : 0;
+  my $webSub = ($data->{nytUserData}->{subscription}->{web}) ? 1 : 0;
+  my $hdSub = ($data->{nytUserData}->{subscription}->{hd}) ? 1 : 0;
+  my $mobSub = ($data->{nytUserData}->{subscription}->{mobile}) ? 1 : 0;
+  my $vcount = $data->{nytUserData}->{visitCount};
+
+  print "insert into NYTUserData values ('$uuid', $timestamp, $hasId, $webSub, $hdSub, $mobSub, $vcount);\n";
+
+  # populate NYTVisitData
+  for my $visit (@{$data->{nytVisits}}) {
+    my $vid = $visit->{visitId};
+    my $fromId = $visit->{fromVisitId};
+    my $timestamp = $visit->{timeStamp};
+    my $path = $visit->{path};
+    my $query = " ".join(" ",@{$visit->{query}});
+    my $host = $visit->{host};
+    print "insert into NYTVisitData values ('$uuid', $timestamp, $vid, $fromId, '$path', '$query', '$host');\n";
+  }
+}
+
 
 sub output {
   #print Dumper($algs);
@@ -188,7 +234,6 @@ sub output {
        }
     }  keys %$userAlgs;
 
-    print "insert ignore into UUID value(NULL, '$uuid');\n";
     print "insert into Payloads value('$uuid',$algs->{$uuid}->{daycount}, $algs->{$uuid}->{day});\n";
     my $lastSet = "";
     my $rank = 1;
@@ -220,5 +265,12 @@ sub output {
                     and AlgRanks.uid = UUID.uid
                     and Algs.aid = AlgRanks.aid
                     and Algs.name = 'daycount.rules.edrules_extended'
-                group by UUID.uid;"
+                group by UUID.uid;\n";
+
+  print "replace into NYTUser select uid, ts, hasId, webSub, hdSub, mobSub, aritcleViews
+         from NYTUserData, UUID where NYTUserData.uuid = UUID.name;\n";
+
+  print "replace into NYTVisit select uid, ts, visitId, fromId, path, query, host
+         from NYTVisitData, UUID where NYTVisitData.uuid = UUID.name;\n";
+
 }

@@ -44,9 +44,11 @@ select NYTVisit.uid,
        installDate
   from NYTVisit, UUID, Subscriber
   where NYTVisit.uid = UUID.uid AND NYTVisit.uid = Subscriber.uid 
+  ### uncomment the line bellow to count recommendation clicks instead of page loads
+  # AND NYTVisit.query like "%src=rec%"
 ;
 
-### compute total page views per user for isSubscriber x isControlGroup x isBefore
+### compute total visits per user for isSubscriber x isControlGroup x isBefore
 select isControlGroup, isSubscriber, isBefore
        , count(distinct(uid)) users
        , count(1) loads
@@ -55,7 +57,7 @@ select isControlGroup, isSubscriber, isBefore
   group by isControlGroup, isSubscriber, isBefore
 ;
 
-### compute distinct days of visits per user for user groups
+### compute distinct visit days  visits per user for user groups
 select isControlGroup, isSubscriber, isBefore 
        , count(distinct(uid)) users
        , count(distinct(DATE_FORMAT(FROM_UNIXTIME(visitTs/1000000),"%Y.%m.%d"))) days

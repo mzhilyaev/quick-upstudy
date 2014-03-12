@@ -107,7 +107,7 @@ sub genDB {
  my $users = (0  + $dict->{"computer_users"}) || "NULL";
  if ($uuid) {
    print "insert ignore into Surveys value('$uuid',$respid,\"$country\",'$lang','$submitted','$users');\n";
-   print "insert ignore into UUID value(NULL, '$uuid');\n";
+   print "insert ignore into UUID value(NULL, '$uuid', NULL, NULL, NULL);\n";
    print "delete from SurveyData;\n";
    for my $item (@$cats) {
     my $cat = $item->[0];

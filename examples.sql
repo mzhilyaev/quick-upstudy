@@ -533,47 +533,46 @@ select alg,
 
 
 ## compute comulative prec relative to history size
-set @rlevel := 1;
-  set @csum := 0 , @usum := 0;
-  #create table rt4
-  select days days_in_history,
-         (@csum := @csum + xyz) as  prec_sum,
-         (@usum := @usum + users) as users_sum ,
-         @csum / @usum as prec_avg_rank_4
-  from (
-    select days ,
-           COUNT(1) users,
-           SUM(prec) xyz
-    from
-    (
-    select hs.uid user,
-           (FLOOR(hs.days / 5)) * 5 days,
-           #hs.days days,
-           al.name alg, rank,
-           SUM(if(rank=@rlevel,1,0)) cats,
-           #SUM(us.choice != 0) correct ,
-           #SUM(us.choice != 0) / COUNT(1)
-           SUM(if(rank<=1,us.choice != 0,0)) correct,
-           if( SUM(if(rank<=1,1,0)) > 0, SUM(if(rank<=1,us.choice != 0,0)) / SUM(if(rank<=1,1,0)), 0) prec
-    from AlgRanks ar , UserChoice us, Algs al , Cats ct , HistSize hs , CatUserCount catu
-    where us.cid = ar.cid and us.uid = ar.uid and ct.cid = ar.cid and al.aid = ar.aid
-          and hs.uid = us.uid
-          and hs.country = "United States"
-          #and hs.days > 30
-          and catu.cid = ct.cid
-          #and ar.rank <= 10
-          #and ar.score > 5
-          and catu.total_shown > 100
-          #and ct.name = "Parenting"
-          and al.name like "daycount.combined.edrules"
-    group by user
-      #having users > 5
-    #order by  overall_prec desc;
-    ) as x
-    group by days
-    order by days desc
-  ) as y
-  order by days desc;
+set @rlevel := 1; ### rank level
+set @csum := 0 , @usum := 0;
+select days days_in_history,
+       (@csum := @csum + xyz) as  prec_sum,
+       (@usum := @usum + users) as users_sum ,
+       @csum / @usum as prec_avg_rank
+from (
+  select days ,
+         COUNT(1) users,
+         SUM(prec) xyz
+  from
+  (
+  select hs.uid user,
+         (FLOOR(hs.days / 5)) * 5 days,
+         al.name alg,
+         SUM(if(rank<=@rlevel,us.choice != 0,0)) correct,
+         if( SUM(if(rank<=@rlevel,1,0)) > 0, SUM(if(rank<=@rlevel,us.choice != 0,0)) / SUM(if(rank<=@rlevel,1,0)), 0) prec
+  from AlgRanks ar , UserChoice us, Algs al , Cats ct , HistSize hs , CatUserCount catu
+  where us.cid = ar.cid and us.uid = ar.uid and ct.cid = ar.cid and al.aid = ar.aid
+        and hs.uid = us.uid
+        #and hs.country = "United States"
+        #and hs.days > 30
+        and catu.cid = ct.cid
+        #and ar.rank <= 10
+        #and ar.score > 5
+        and catu.total_shown > 100
+        #and ct.name = "Parenting"
+        and al.name like "daycount.combined.edrules"
+  group by user
+    #having users > 5
+  #order by  overall_prec desc;
+  ) as x
+  group by days
+  order by days desc
+) as y
+order by days desc;
+
+#### create comparative table
+
+select t1.days_in_history, t1.prec_avg_rank rank_1_only, t2.prec_avg_rank upto_rank_2, t3.prec_avg_rank upto_rank_3, t4.prec_avg_rank upto_rank_3 from t1,t2,t3,t4 where t1.days_in_history = t2.days_in_history and t2.days_in_history = t3.days_in_history and t3.days_in_history = t4.days_in_history;
 
 select hs.uid user, hs.days , ct.name , (us.choice != 0) correct , rank , score
   from AlgRanks ar , UserChoice us, Algs al , Cats ct , HistSize hs , CatUserCount catu

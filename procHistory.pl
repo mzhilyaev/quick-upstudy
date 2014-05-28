@@ -69,6 +69,7 @@ my $json = JSON->new();
 
 my $algs = {};
 my $nyt = {};
+my $uuidMap = {};
 my $data = "";
 my $ind = 1;
 open(FILE,"< $inFile");
@@ -149,23 +150,26 @@ sub procData {
   my $perl_scalar = $json->decode( $data );
   #print Dumper($perl_scalar);
   my $uuid = $perl_scalar->{"uuid"};
-  my $hasSurveyInterests = ($perl_scalar->{"hasSurveyInterests"}) ? 1 : 0;
-  my $personalizeOn = ($perl_scalar->{"personalizeOn"}) ? 1 : 0;
-  # convert date to timestamp
-  my $installDate = $perl_scalar->{"installDate"};
-  my $installTime = ($installDate) ? str2time($installDate)*1000000 : 0;
-  my $updateDate = $perl_scalar->{"updateDate"};
-  my $updateTime = ($updateDate) ? str2time($updateDate)*1000000 : 0;
   my $version = $perl_scalar->{"version"};
-  my $locale = $perl_scalar->{"locale"};
-  print "replace into UUID value(NULL, '$uuid', $hasSurveyInterests, $personalizeOn, $installTime, '$version', '$locale', $updateTime);\n";
 
-  if(!$algs->{$uuid}) {
+  if (!$uuidMap->{$uuid} || ($uuidMap->{$uuid}->{VERSION} cmp $version) < 0) {
+    $uuidMap->{$uuid}->{VERSION} = $version;
     $algs->{$uuid}->{day} = 0;
     $algs->{$uuid}->{days} = {};
     $algs->{$uuid}->{daycount} = 0;
     $algs->{$uuid}->{counts} = {};
+    my $hasSurveyInterests = ($perl_scalar->{"hasSurveyInterests"}) ? 1 : 0;
+    my $personalizeOn = ($perl_scalar->{"personalizeOn"}) ? 1 : 0;
+    # convert date to timestamp
+    my $installDate = $perl_scalar->{"installDate"};
+    my $installTime = ($installDate) ? str2time($installDate)*1000000 : 0;
+    my $updateDate = $perl_scalar->{"updateDate"};
+    my $updateTime = ($updateDate) ? str2time($updateDate)*1000000 : 0;
+    my $locale = $perl_scalar->{"locale"};
+    $uuidMap->{$uuid}->{REPLACE} = "replace into UUID value(NULL, '$uuid', $hasSurveyInterests, $personalizeOn, $installTime, '$version', '$locale', $updateTime);\n";
   }
+
+  return if (($uuidMap->{$uuid}->{VERSION} cmp $version) > 0);
 
   if (!$skipInts) {
     for my $day (keys %{$perl_scalar->{interests}}) {
@@ -186,24 +190,30 @@ sub procData {
     }
   }
 
-  procNYTData($uuid,$perl_scalar);
+  procNYTData($uuid,$perl_scalar,$version);
 }
 
 sub procNYTData {
-  my ($uuid,$data) = @_;
+  my ($uuid,$data,$version) = @_;
 
   return if (!$data->{nytUserData});
 
-  # populate NYTUserData with user data
-  my $timestamp = $data->{nytUserData}->{timeStamp} * 1000;
-  my $hasId = ($data->{nytUserData}->{hasId}) ? 1 : 0;
-  my $webSub = ($data->{nytUserData}->{subscription}->{web}) ? 1 : 0;
-  my $hdSub = ($data->{nytUserData}->{subscription}->{hd}) ? 1 : 0;
-  my $mobSub = ($data->{nytUserData}->{subscription}->{mobile}) ? 1 : 0;
-  my $vcount = $data->{nytUserData}->{visitCount} || 0;
-  my $version = $data->{"version"} || "";
+  if (!$nyt->{$uuid} || ($nyt->{$uuid}->{VERSION} cmp $version) < 0) {
+    # populate NYTUserData with user data
+    my $timestamp = $data->{nytUserData}->{timeStamp} * 1000;
+    my $hasId = ($data->{nytUserData}->{hasId}) ? 1 : 0;
+    my $webSub = ($data->{nytUserData}->{subscription}->{web}) ? 1 : 0;
+    my $hdSub = ($data->{nytUserData}->{subscription}->{hd}) ? 1 : 0;
+    my $mobSub = ($data->{nytUserData}->{subscription}->{mobile}) ? 1 : 0;
+    my $vcount = $data->{nytUserData}->{visitCount} || 0;
 
-  print "insert into NYTUserData values ('$uuid', $timestamp, $hasId, $webSub, $hdSub, $mobSub, $vcount);\n";
+    $nyt->{$uuid}->{USER} = "insert into NYTUserData values ('$uuid', $timestamp, $hasId, $webSub, $hdSub, $mobSub, $vcount);\n";
+    $nyt->{$uuid}->{VISITS} = "";
+    $nyt->{$uuid}->{VERSION} = $version;
+    print "CLEAR ==\n";
+  }
+
+  return if (($nyt->{$uuid}->{VERSION} cmp $version) > 0);
 
   # populate NYTVisitData
   for my $visit (@{$data->{nytVisits}}) {
@@ -213,7 +223,8 @@ sub procNYTData {
     my $path = $visit->{path};
     my $query = " ".join(" ",@{$visit->{query}});
     my $host = $visit->{host};
-    print "insert into NYTVisitData values ('$uuid', $timestamp, $vid, $fromId, '$path', '$query', '$host', '$version');\n";
+    $nyt->{$uuid}->{VISITS} .=  "insert into NYTVisitData values ('$uuid', $timestamp, $vid, $fromId, '$path', '$query', '$host', '$version');\n";
+    print $nyt->{$uuid}->{VISITS};
   }
 }
 
@@ -222,6 +233,17 @@ sub output {
   #print Dumper($algs);
   `rm -f /tmp/theoutfile`;
   open( FILE ," > /tmp/theoutfile");
+
+  for my $uuid (keys %$uuidMap) {
+    print $uuidMap->{$uuid}->{REPLACE};
+  }
+
+  ## output nyt data
+  for my $uuid (keys %$nyt) {
+    print $nyt->{$uuid}->{USER};
+    print $nyt->{$uuid}->{VISITS};
+  }
+
   for my $uuid (keys %$algs) {
     my $userAlgs = $algs->{$uuid}->{counts};
     my @sorted = sort {
@@ -258,6 +280,7 @@ sub output {
         print FILE "$uuid\t$lastSet\t$key\t$score\t$rank\n";
         $rank++;
     }
+
   }
   close(FILE);
   print "delete from ScriptData;\n";

@@ -83,7 +83,7 @@ if (!$dbfy) {
   print Dumper($algs);
 }
 else {
-  synth();
+  #synth();
   output();
 }
 
@@ -154,7 +154,11 @@ sub procData {
   # convert date to timestamp
   my $installDate = $perl_scalar->{"installDate"};
   my $installTime = ($installDate) ? str2time($installDate)*1000000 : 0;
-  print "insert ignore into UUID value(NULL, '$uuid', $hasSurveyInterests, $personalizeOn, $installTime);\n";
+  my $updateDate = $perl_scalar->{"updateDate"};
+  my $updateTime = ($updateDate) ? str2time($updateDate)*1000000 : 0;
+  my $version = $perl_scalar->{"version"};
+  my $locale = $perl_scalar->{"locale"};
+  print "replace into UUID value(NULL, '$uuid', $hasSurveyInterests, $personalizeOn, $installTime, '$version', '$locale', $updateTime);\n";
 
   if(!$algs->{$uuid}) {
     $algs->{$uuid}->{day} = 0;
@@ -196,7 +200,8 @@ sub procNYTData {
   my $webSub = ($data->{nytUserData}->{subscription}->{web}) ? 1 : 0;
   my $hdSub = ($data->{nytUserData}->{subscription}->{hd}) ? 1 : 0;
   my $mobSub = ($data->{nytUserData}->{subscription}->{mobile}) ? 1 : 0;
-  my $vcount = $data->{nytUserData}->{visitCount};
+  my $vcount = $data->{nytUserData}->{visitCount} || 0;
+  my $version = $data->{"version"} || "";
 
   print "insert into NYTUserData values ('$uuid', $timestamp, $hasId, $webSub, $hdSub, $mobSub, $vcount);\n";
 
@@ -208,7 +213,7 @@ sub procNYTData {
     my $path = $visit->{path};
     my $query = " ".join(" ",@{$visit->{query}});
     my $host = $visit->{host};
-    print "insert into NYTVisitData values ('$uuid', $timestamp, $vid, $fromId, '$path', '$query', '$host');\n";
+    print "insert into NYTVisitData values ('$uuid', $timestamp, $vid, $fromId, '$path', '$query', '$host', '$version');\n";
   }
 }
 
@@ -270,7 +275,7 @@ sub output {
   print "replace into NYTUser select uid, ts, hasId, webSub, hdSub, mobSub, aritcleViews
          from NYTUserData, UUID where NYTUserData.uuid = UUID.name;\n";
 
-  print "replace into NYTVisit select uid, ts, visitId, fromId, path, query, host
+  print "replace into NYTVisit select uid, ts, visitId, fromId, path, query, host, NYTVisitData.version
          from NYTVisitData, UUID where NYTVisitData.uuid = UUID.name;\n";
 
 }

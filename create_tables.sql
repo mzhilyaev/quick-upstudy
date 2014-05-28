@@ -7,7 +7,10 @@ create table IF NOT EXISTS UUID
   name VARCHAR(64) NOT NULL UNIQUE KEY,
   hasSurveyInterests TINYINT,
   personalizeOn TINYINT,
-  installDate BIGINT UNSIGNED
+  installDate BIGINT UNSIGNED,
+  version VARCHAR(32),
+  locale VARCHAR(128),
+  updateDate BIGINT UNSIGNED
 );
 
 drop table IF EXISTS Payloads;
@@ -146,7 +149,8 @@ create table IF NOT EXISTS NYTVisitData (
   fromId INTEGER UNSIGNED,
   path VARCHAR(256),
   query VARCHAR(256),
-  host VARCHAR(64)
+  host VARCHAR(64),
+  version VARCHAR(32)
 );
 
 drop table IF EXISTS NYTVisit;
@@ -158,6 +162,7 @@ create table IF NOT EXISTS NYTVisit (
   path VARCHAR(256),
   query VARCHAR(256),
   host VARCHAR(64),
+  version VARCHAR(32),
   PRIMARY KEY (uid, ts, visitId, fromId)
 );
 

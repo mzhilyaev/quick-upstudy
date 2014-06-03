@@ -210,7 +210,6 @@ sub procNYTData {
     $nyt->{$uuid}->{USER} = "insert into NYTUserData values ('$uuid', $timestamp, $hasId, $webSub, $hdSub, $mobSub, $vcount);\n";
     $nyt->{$uuid}->{VISITS} = "";
     $nyt->{$uuid}->{VERSION} = $version;
-    print "CLEAR ==\n";
   }
 
   return if (($nyt->{$uuid}->{VERSION} cmp $version) > 0);

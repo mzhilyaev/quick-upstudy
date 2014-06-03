@@ -17,8 +17,8 @@ perl -MCPAN -e 'install List::Util'
 5. populate database
 
 cat create_tables.sql edcats 58cats | mysql -u admin upstudy
-./procSurvey.pl -i survey.xml -d | mysql -u admin upstudy
 ./procHistory.pl -i submissions.json -d | mysql -u admin upstudy
+./procSurvey.pl -i survey.xml -d | mysql -u admin upstudy
 
 6. read query examples in examples.sql
 

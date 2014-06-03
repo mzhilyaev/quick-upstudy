@@ -62,6 +62,8 @@ if (!$regen) {
   `cat postpopulate.sql | $mysql -u admin $dbname`;
 }
 
+print "Generating reports from $inFile\n";
+
 my $data = "";
 open(FILE,"< $inFile");
 while(<FILE>) {

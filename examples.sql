@@ -830,3 +830,12 @@ select alg,
 # generating uuid to interest mapping
 select UUID.name, Cats.name , choice, isTop5 into outfile '/tmp/survey.txt' from UserChoice , Cats , UUID where Cats.cid = UserChoice.cid and UUID.uid = UserChoice.uid and choice > 0 order by UUID.name;
 
+# users stats by version
+select version, count(1) users, sum(if( uuid is not NULL, 1, 0)) surveys from (select version, name, uuid from UUID left join Surveys on Surveys.uuid = UUID.name) as x group by version;
+
+select version, days, uuid from HistSize,
+  (select version, uid, uuid from UUID left join Surveys on Surveys.uuid = UUID.name) as x
+  where HistSize.uid = x.uid
+  limit 10;
+
+select round(days / 5 + 1)*5 up_to_days, count(1) users from HistSize group by d;

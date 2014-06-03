@@ -12,6 +12,28 @@ insert into CatStats
   where ar.uid = us.uid and ar.cid = us.cid and ar.rank <= 15
   group by aid,cid;
 
+delete from HistSize;
+insert into HistSize select UUID.uid , days , country , sum( AlgRanks.score) score_sum
+  from UUID , Payloads , Surveys , AlgRanks
+  where UUID.name = Payloads.uuid
+    and Surveys.uuid = UUID.name
+    and AlgRanks.uid = UUID.uid
+group by UUID.uid;
+
+### populate CatUserCount
+drop table CatUserCount;
+create table CatUserCount
+    select Cats.cid as cid, Cats.name cat, sum(1) as total_shown , sum(choice = 1) as topInterested , sum(if(choice != 0,1,0)) as interested ,
+           sum(choice = 1) / sum(1)  topBasePrec ,
+           2 * (sum(choice = 1) / sum(1)) / ( 1 + sum(choice = 1) / sum(1)) topBaseF,
+           sum(if(choice != 0,1,0)) / sum(1) basePrec ,
+           2 * (sum(if(choice != 0,1,0)) / sum(1)) / ( 1 + sum(if(choice != 0,1,0)) / sum(1)) baseF
+    from UserChoice, Cats , HistSize
+    where Cats.cid = UserChoice.cid
+      and HistSize.uid = UserChoice.uid
+      and HistSize.days > 5
+  group by Cats.cid;
+
 
 #### show how categories were presented and choosen by a user
 select Cats.name ,
@@ -72,21 +94,6 @@ select us.* , non.presented non_us_presented, non.interested non_us_interested, 
   ) as non
   on us.name = non.name
   order by us.basePrecision desc;
-
-### populate CatUserCount
-drop table CatUserCount;
-create table CatUserCount
-    select Cats.cid as cid, Cats.name cat, sum(1) as total_shown , sum(choice = 1) as topInterested , sum(if(choice != 0,1,0)) as interested ,
-           sum(choice = 1) / sum(1)  topBasePrec ,
-           2 * (sum(choice = 1) / sum(1)) / ( 1 + sum(choice = 1) / sum(1)) topBaseF,
-           sum(if(choice != 0,1,0)) / sum(1) basePrec ,
-           2 * (sum(if(choice != 0,1,0)) / sum(1)) / ( 1 + sum(if(choice != 0,1,0)) / sum(1)) baseF
-    from UserChoice, Cats , HistSize
-    where Cats.cid = UserChoice.cid
-      and HistSize.uid = UserChoice.uid
-      and HistSize.country = "United States"
-      and HistSize.days > 5
-  group by Cats.cid;
 
 #### show how different algorithms perform for a given Category precision-wise
 select Algs.name,
@@ -173,12 +180,12 @@ select name alg, count(distinct(cat)) catnb, ROUND(AVG(top_prec),3) top_precisio
     from AlgRanks ar , UserChoice us, Algs al , Cats ct , HistSize hs, CatUserCount catu
     where us.cid = ar.cid and us.uid = ar.uid and ct.cid = ar.cid and al.aid = ar.aid
         and hs.uid = us.uid
-        and hs.country = "United States"
+        #and hs.country = "United States"
         and hs.days > 5
         and (hs.scoresum / hs.days ) > 0
         and catu.cid = ar.cid
         and ar.rank <= 10
-        and ar.score > 5
+        #and ar.score > 5
     group by al.name , ct.name
     having users > 5
       #and overall_precision >= 0.6
@@ -249,22 +256,51 @@ select name alg, AVG(cnumber) assigned_cats, COUNT(1) users
   group by alg
   having users > 5;
 
-select cat foo , name, AVG(top_prec) top_precision_avg, AVG(overall_precision) overall_precision_avg, AVG(users) user_reach_avg
+select cat category , AVG(top_prec) top_precision_avg, AVG(overall_precision) overall_precision_avg, AVG(users) user_reach_avg
   from
    (select al.name as name, ct.name as cat , COUNT(1) as users, SUM(us.choice = 1) / SUM(us.isTop5) as top_prec, SUM(us.choice != 0) / COUNT(1) as overall_precision
     from AlgRanks ar , UserChoice us, Algs al , Cats ct , HistSize hs
     where us.cid = ar.cid and us.uid = ar.uid and ct.cid = ar.cid and al.aid = ar.aid
         and hs.uid = us.uid
         and hs.days > 5
-        and hs.country = "United States"
+        #and hs.country = "United States"
         and ar.rank <= 10
-        and ar.score > 5
+        #and ar.score > 5
     group by al.name , ct.name
     having users > 5
           and  cat IN (select cat from CatUserCount where total_shown > 100)
+    order by overall_precision desc
    ) as apres
-  group by foo
+  group by category
   order by overall_precision_avg desc;
+
+
+select cat category , name alg, prec total_precision, total_recall, users user_reach_avg,
+       users / (select count(1) from HistSize where days > 5) as pct_total_users
+  from
+   (select al.name as name,
+           ct.name as cat ,
+           COUNT(1) as users,
+           SUM(us.choice != 0) / COUNT(1) as prec,
+           SUM(us.choice != 0) / catu.interested as total_recall
+    from AlgRanks ar , UserChoice us, Algs al , Cats ct , HistSize hs, CatUserCount catu
+    where us.cid = ar.cid
+        and us.uid = ar.uid
+        and ct.cid = ar.cid
+        and al.aid = ar.aid
+        and catu.cid = ct.cid
+        and hs.uid = us.uid
+        and hs.days > 5
+        #and hs.country = "United States"
+        and ar.rank <= 10
+        #and ar.score > 5
+    group by al.name , ct.name
+    having users > 5
+          and  cat IN (select cat from CatUserCount where total_shown > 100)
+    order by prec desc
+   ) as apres
+  group by category
+  order by total_precision desc;
 
 
 
@@ -375,17 +411,6 @@ select us.uid , ct.name as cat , us.choice, hs.days
 select x.name, news_page , news_home_page from (select Algs.name, count(distinct(AlgRanks.uid)) users , SUM(score) news_page from HistSize, Algs, AlgRanks , Cats where HistSize.uid = AlgRanks.uid and HistSize.country = "United States" and Algs.name like '%.rules.%' and Algs.aid = AlgRanks.aid and Cats.cid = AlgRanks.cid and Cats.name = "__news_counter" group by Algs.name) x , (select Algs.name, count(distinct(AlgRanks.uid)) users, SUM(score) news_home_page from HistSize, Algs, AlgRanks , Cats where HistSize.uid = AlgRanks.uid and HistSize.country = "United States" and Algs.name like '%.rules.%' and Algs.aid = AlgRanks.aid and Cats.cid = AlgRanks.cid and Cats.name = "__news_home_counter" group by Algs.name) y where x.name = y.name;
 
 
-### populate HistSize
-select UUID.uid , days , country , sum( AlgRanks.score) score_sum
-    from UUID , Payloads , Surveys , Algs , AlgRanks
-    where UUID.name = Payloads.uuid
-      and Surveys.uuid = UUID.name
-      and AlgRanks.uid = UUID.uid
-      and Algs.aid = AlgRanks.aid
-      and Algs.name = "daycount.rules.edrules_extended"
-    group by UUID.uid;
-
-
 # computing relative performance betwix two algorithms
 select al.name as name, ct.name as cat , COUNT(1) as users,
         SUM(us.choice = 1) / SUM(us.isTop5) as top_prec,
@@ -473,7 +498,7 @@ select count(distinct(us.uid))
    and ct.name = "Video-Games";
 
 
-select alg, AVG(overall_prec) as prec
+select alg, AVG(overall_prec) as prec, AVG(overall_recall) recall
   from (
   select ct.name interest, al.name alg,
          COUNT(1) users, SUM(us.choice != 0) correct, rank,
@@ -486,11 +511,11 @@ select alg, AVG(overall_prec) as prec
   from AlgRanks ar , UserChoice us, Algs al , Cats ct , HistSize hs , CatUserCount catu
   where us.cid = ar.cid and us.uid = ar.uid and ct.cid = ar.cid and al.aid = ar.aid
         and hs.uid = us.uid
-        and hs.country = "United States"
+        #and hs.country = "United States"
         and hs.days > 5
         and catu.cid = ct.cid
-        and ar.rank <= 3
-        and ar.score > 5
+        and ar.rank <= 10
+        #and ar.score > 5
         and catu.total_shown > 100
         #and ct.name = "Parenting"
         #and al.name = "daycount.combined.edrules_extended"
@@ -523,7 +548,7 @@ select alg,
         #and ar.score > 5
         and catu.total_shown > 100
         #and ct.name = "Parenting"
-        and al.name like "daycount.%"
+        #and al.name like "daycount.%"
   group by user, al.name
     #having users > 5
   #order by  overall_prec desc;
@@ -560,7 +585,7 @@ from (
         #and ar.score > 5
         and catu.total_shown > 100
         #and ct.name = "Parenting"
-        and al.name like "daycount.combined.edrules"
+        and al.name like "daycount.rules.edrules"
   group by user
     #having users > 5
   #order by  overall_prec desc;
@@ -573,6 +598,50 @@ order by days desc;
 #### create comparative table
 
 select t1.days_in_history, t1.prec_avg_rank rank_1_only, t2.prec_avg_rank upto_rank_2, t3.prec_avg_rank upto_rank_3, t4.prec_avg_rank upto_rank_3 from t1,t2,t3,t4 where t1.days_in_history = t2.days_in_history and t2.days_in_history = t3.days_in_history and t3.days_in_history = t4.days_in_history;
+
+
+# stored procedure to compute combined ranks table
+drop PROCEDURE if EXISTS computeHistRanks;
+delimiter //
+CREATE PROCEDURE computeHistRanks(IN algName CHAR(64), IN x INT)
+ BEGIN
+    set @rlevel := x; ### rank level
+    set @csum := 0 , @usum := 0;
+    drop table IF EXISTS tbl;
+    create table tbl
+    select days days_in_history,
+           (@csum := @csum + xyz) as  prec_sum,
+           (@usum := @usum + users) as users_sum ,
+           @csum / @usum as prec_avg_rank
+    from (
+      select days ,
+             COUNT(1) users,
+             SUM(prec) xyz
+      from
+      (
+      select hs.uid user,
+             (FLOOR(hs.days / 5)) * 5 days,
+             al.name alg,
+             SUM(if(rank<=@rlevel,us.choice != 0,0)) correct,
+             if( SUM(if(rank<=@rlevel,1,0)) > 0, SUM(if(rank<=@rlevel,us.choice != 0,0)) / SUM(if(rank<=@rlevel,1,0)), 0) prec
+      from AlgRanks ar , UserChoice us, Algs al , Cats ct , HistSize hs , CatUserCount catu
+      where us.cid = ar.cid and us.uid = ar.uid and ct.cid = ar.cid and al.aid = ar.aid
+            and hs.uid = us.uid
+            and catu.cid = ct.cid
+            and catu.total_shown > 100
+            and al.name = algName
+      group by user
+      ) as x
+      group by days
+      order by days desc
+    ) as y
+    order by days desc;
+ END;
+//
+delimiter ;
+
+
+
 
 select hs.uid user, hs.days , ct.name , (us.choice != 0) correct , rank , score
   from AlgRanks ar , UserChoice us, Algs al , Cats ct , HistSize hs , CatUserCount catu
@@ -605,7 +674,7 @@ select ct.name catn,
         #SUM(us.choice != 0) / catu.interested all_recall ,
         #2 * (SUM(us.choice != 0) / COUNT(1) * SUM(us.choice != 0) / catu.interested) / (SUM(us.choice != 0) / COUNT(1) + SUM(us.choice != 0) / catu.interested) allF
         ROUND((SUM(us.choice != 0) / COUNT(1) - catu.basePrec) * 100,1) delta,
-        ROUND((SUM(us.choice != 0) / COUNT(1) / catu.basePrec ) * 100,1) pct
+        ROUND(((SUM(us.choice != 0) / COUNT(1) - catu.basePrec) / catu.basePrec ) * 100,1) pct
   from AlgRanks ar ,
        UserChoice us,
        Algs al ,
@@ -618,11 +687,11 @@ select ct.name catn,
         and al.aid = ar.aid
         and hs.uid = us.uid
         and hs.days > 5
-        and hs.country = "United States"
+        #and hs.country = "United States"
         and catu.cid = ct.cid
-        #and ar.rank <= 10
+        and ar.rank <= 10
         #and ar.score > 5
-        and al.name = "daycount.rules.rules_synthetic"
+        and al.name = "daycount.rules.edrules"
   group by ct.name , al.name
   having presented > 5
          #and catn IN (select cat from CatUserCount where total_shown > 100)

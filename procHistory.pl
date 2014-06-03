@@ -286,14 +286,6 @@ sub output {
   print "delete from ScriptData;\n";
   print "load data infile '/tmp/theoutfile' into table ScriptData;\n";
   print "replace into AlgRanks select uid , aid , cid , score , rank from ScriptData, UUID, Algs, Cats where uuid = UUID.name and alg = Algs.name and cat = Cats.name;\n";
-  print "insert ignore into HistSize select UUID.uid , days , country , sum( AlgRanks.score) score_sum
-                from UUID , Payloads , Surveys , Algs , AlgRanks 
-                where UUID.name = Payloads.uuid 
-                    and Surveys.uuid = UUID.name 
-                    and AlgRanks.uid = UUID.uid
-                    and Algs.aid = AlgRanks.aid
-                    and Algs.name = 'daycount.rules.edrules_extended'
-                group by UUID.uid;\n";
 
   print "replace into NYTUser select uid, ts, hasId, webSub, hdSub, mobSub, aritcleViews
          from NYTUserData, UUID where NYTUserData.uuid = UUID.name;\n";

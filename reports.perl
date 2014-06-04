@@ -322,6 +322,7 @@ my $VAR1 = [
     {
       title => "Inside vs. Outside visit",
       query => '
+       set @nytArticles := (select sum(if(INSTR(path,"TITLE") != 0,1,0)) from NYTVisit);
        select (fromId in (select visitId from NYTVisit)) inside
          ,count(1) visits
          , round(count(1) * 100 / @nytTotal) pct_of_total
@@ -334,6 +335,7 @@ my $VAR1 = [
     {
       title => "Subscriber vs. Non-subscriber visits to recommended articles",
       query => '
+        set @nytArticles := (select sum(if(INSTR(path,"TITLE") != 0,1,0)) from NYTVisit);
         select isSubscriber subscriber
           , count(distinct(Subscriber.uid)) users
           , count(1) views

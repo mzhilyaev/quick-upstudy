@@ -135,10 +135,11 @@ set @nytTotal := (select count(1) from NYTVisit);
 set @nytArticles := (select sum(if(INSTR(path,"TITLE") != 0,1,0)) from NYTVisit);
 set @amoPush = 1393986123000000;
 
+drop table IF EXISTS UUID_NYT;
 create table UUID_NYT
 select * from UUID
  where version >= "3.0.1"
-    and installDate >= 1393986123000000;
+    and installDate >= @amoPush;
 
 insert into UserGroupTimeSpan
 select NYTVisit.uid uid,

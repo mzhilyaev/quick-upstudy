@@ -1,11 +1,16 @@
-my $VAR1 = {
-  _CONF => {
-    outdir => "reports"
-  },
+my $VAR1 = [
   "Users Stats" => [
     {
       title => "Total Number of Users",
       query => "select count(1) users from UUID;"
+    },
+    {
+      title => "Number of surveyed users by version and time frame",
+      query => "select version, MIN(submitted), MAX(submitted), count(1) users from Surveys, UUID where UUID.name = Surveys.uuid group by version;"
+    },
+    {
+      title => "Number of surveyed users by month",
+      query => "select YEAR(submitted) year, MONTH(submitted) month, count(1) users from Surveys group by year,month;"
     },
     {
       title => "Users by addon version",
@@ -293,4 +298,72 @@ my $VAR1 = {
       '
     }
   ],
-};
+  "NYT Study" => [
+    {
+      title => "Subscriber vs. Non-subscriber daily visits",
+      query => '
+        select sb.isSubscriber subscriber
+             , count(distinct(hs.uid)) users
+             , count(1) visits, count(1) / count(distinct(hs.uid)) / hs.days per_day
+       from NYTVisit ny, HistSize hs, Subscriber sb
+       where ny.uid = hs.uid and sb.uid = hs.uid group by sb.isSubscriber;
+      '
+    },
+    {
+      title => "NYT Visit types",
+      query => '
+        select count(1) total
+             , sum(if(path = "/",1,0)) home_visits
+             , sum(if(INSTR(path,"TITLE") != 0,1,0)) articles
+             , sum(if(INSTR(path,"TITLE") = 0 & path != "/",1,0)) sections
+        from NYTVisit;
+      '
+    },
+    {
+      title => "Inside vs. Outside visit",
+      query => '
+       select (fromId in (select visitId from NYTVisit)) inside
+         ,count(1) visits
+         , round(count(1) * 100 / @nytTotal) pct_of_total
+         , sum(if(INSTR(path,"TITLE") != 0,1,0)) articles
+         , round(sum(if(INSTR(path,"TITLE") != 0,1,0)) * 100 / @nytArticles) pct_of_total_articles
+       from NYTVisit
+       group by inside;
+      '
+    },
+    {
+      title => "Subscriber vs. Non-subscriber visits to recommended articles",
+      query => '
+        select isSubscriber subscriber
+          , count(distinct(Subscriber.uid)) users
+          , count(1) views
+          , round(count(1) * 100 / @nytArticles) pct_of_total_articles
+        from NYTVisit, Subscriber
+        where NYTVisit.uid = Subscriber.uid
+              and (query like "%module=Ribbon%" or query like "%src=rec%" or query like "%src=me%" or query like "%src=mv%") group by subscriber;
+        '
+    },
+    {
+      title => "Results of A/B testing",
+      query => '
+      select (uuid.personalizeOn) isON
+        , sb.isSubscriber isSubscriber
+        , count(1) visits
+        , count(distinct(uuid.uid)) users
+        , sum(if(INSTR(path,"TITLE") != 0,1,0)) articles
+        , sum(query like "%module=Ribbon%" or query like "%src=rec%" or query like "%src=me%" or query like "%src=mv%") rec_clicks
+        , round(sum(query like "%module=Ribbon%" or query like "%src=rec%" or query like "%src=me%" or query like "%src=mv%") * 100 / sum(if(INSTR(path,"TITLE") != 0,1,0)),2) pct
+        , sum(query like "%src=recmoz%") moz_recommended
+        , sum(query like "%src=me%") most_emailed
+        , sum(query like "%module=Ribbon%") ribbon
+        , sum(query like "%src=rec%") rec
+        , sum(query like "%src=mv%") mv
+      from NYTVisit nv, UUID_NYT uuid, Subscriber sb
+      where nv.uid = uuid.uid
+        and nv.uid = sb.uid
+        group by isON, isSubscriber;
+
+      '
+    },
+  ]
+];

@@ -174,9 +174,10 @@ set @nytArticles := (select sum(if(INSTR(path,"TITLE") != 0,1,0)) from NYTVisit)
 set @amoPush = 1393986123000000;
 
 ### clean testing UUIDs from UUID table
-delete from UUID
-  where version = "3.0.1"
-    and installDate < 1393986123000000;
+create table UUID_NYT
+select * from UUID
+ where version >= "3.0.1"
+     and installDate >= @amoPush;
 
 ### compute subscriber vs non-subscriber sttats
 select sb.isSubscriber subscriber
@@ -209,7 +210,7 @@ where query like "%module=Ribbon%";
 # compute recoemndation downloads for subscribe vs non-subscriber
 select isSubscriber subscriber
   , count(distinct(Subscriber.uid)) users
-  , "total in group", count(1) views
+  , count(1) views
   , round(count(1) * 100 / @nytArticles) pct_of_total_articles
 from NYTVisit, Subscriber
 where NYTVisit.uid = Subscriber.uid
@@ -228,7 +229,7 @@ select (ts > updateDate AND uuid.personalizeOn = 1) isON
   , sum(query like "%module=Ribbon%") ribbon
   , sum(query like "%src=rec%") rec
   , sum(query like "%src=mv%") mv
-from NYTVisit nv, UUID uuid, Subscriber sb
+from NYTVisit nv, UUID_NYT uuid, Subscriber sb
 where nv.uid = uuid.uid
   and nv.uid = sb.uid
   #and uuid.personalizeOn = 1
@@ -249,15 +250,12 @@ select (uuid.personalizeOn) isON
   , sum(query like "%module=Ribbon%") ribbon
   , sum(query like "%src=rec%") rec
   , sum(query like "%src=mv%") mv
-from NYTVisit nv, UUID uuid, Subscriber sb
+from NYTVisit nv, UUID_NYT uuid, Subscriber sb
 where nv.uid = uuid.uid
   and nv.uid = sb.uid
-  and uuid.version = '3.0.1'
-  and ts > updateDate
-  and uuid.uid != 125908
   group by isON, isSubscriber;
 
-select * from NYTVisit nv, UUID uuid, Subscriber sb
+select * from NYTVisit nv, UUID_NYT uuid, Subscriber sb
 where nv.uid = uuid.uid
   and nv.uid = sb.uid
   and uuid.personalizeOn = 1
@@ -272,20 +270,20 @@ select FROM_UNIXTIME (ts/1000000), path, query from NYTVisit where uid = 125908;
 # clean away bad users (us testing stuff)
 # ones that do not have personalize on but have recmoz
 create table tbl1
-  select distinct(UUID.uid)
-    from NYTVisit nv, UUID uuid
+  select distinct(UUID_NYT.uid)
+    from NYTVisit nv, UUID_NYT uuid
     where nv.uid = uuid.uid
     and uuid.personalizeOn != 1
     and query like "%src=recmoz%";
-delete from UUID where uid in (select * from tbl1);
+delete from UUID_NYT where uid in (select * from tbl1);
 drop table tbl1;
 
 # and ones that have personalize on and wrong version
-delete from UUID where version != '3.0.1' and personalizeOn = 1;
+delete from UUID_NYT where version != '3.0.1' and personalizeOn = 1;
 
 
 select uuid.uid, query, path
-  from NYTVisit nv, UUID uuid, Subscriber sb
+  from NYTVisit nv, UUID_NYT uuid, Subscriber sb
   where nv.uid = uuid.uid
     and nv.uid = sb.uid
     and (uuid.personalizeOn != 1 or ts < updateDate)
@@ -294,7 +292,7 @@ select uuid.uid, query, path
 
 #select sum(query like "%module=Ribbon%" or query like "%src=rec%" or query like "%src=me%" or query like "%src=mv%") sum
 select query
-from NYTVisit nv, UUID uuid, Subscriber sb
+from NYTVisit nv, UUID_NYT uuid, Subscriber sb
 where nv.uid = uuid.uid
   and nv.uid = sb.uid
   and uuid.personalizeOn = 1
@@ -304,8 +302,8 @@ where nv.uid = uuid.uid
 
 # simplified viersion for History computing
 delete from HistSize;
-insert ignore into HistSize select UUID.uid , days , country , 0 score_sum
-                from UUID , Payloads , Surveys
-                where UUID.name = Payloads.uuid
-                    and Surveys.uuid = UUID.name
-                group by UUID.uid;
+insert ignore into HistSize select UUID_NYT.uid , days , country , 0 score_sum
+                from UUID_NYT , Payloads , Surveys
+                where UUID_NYT.name = Payloads.uuid
+                    and Surveys.uuid = UUID_NYT.name
+                group by UUID_NYT.uid;

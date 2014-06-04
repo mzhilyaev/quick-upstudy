@@ -14,6 +14,7 @@ my $surveyFile = "survey.xml";
 my $histFile = "history.json";
 my $dbname = "upstudy1";
 my $regen;
+my $outdir = "reports";
 
 if(
      !GetOptions (
@@ -22,6 +23,7 @@ if(
             "survey|s=s" => \$surveyFile ,
             "hist|h=s" => \$histFile ,
             "db|d=s" => \$dbname ,
+            "outdir|o=s" => \$outdir ,
             "regen|r" => \$regen ,
      )
      || defined( $help )  ### or help is wanted
@@ -77,18 +79,20 @@ die "$@ unable to parse $inFile" if ($@);
 
 #print Dumper($perl_scalar);
 
-my $outdir = $perl_scalar->{_CONF}->{outdir};
 `rm -rf $outdir`;
 mkdir $outdir;
 
 my $qindex = 1;
 
 open(INDEX,"> $outdir/index.html");
-for my $key (keys %$perl_scalar) {
-  next if($key =~ /^_/);
+while (scalar(@$perl_scalar)) {
+  my $key = shift @$perl_scalar;
+  my $queries = shift @$perl_scalar;
+
+  next if( $key =~ /^_/);
 
   print INDEX "<h3>$key</h3>\n";
-  for my $query (@{$perl_scalar->{$key}}) {
+  for my $query (@$queries) {
     my $qfile = "query_$qindex.html";
     print INDEX "  <li><a href='$qfile'/>$query->{title}</a></li>\n";
     outputFile($qfile, $query->{title}, $query->{query});
